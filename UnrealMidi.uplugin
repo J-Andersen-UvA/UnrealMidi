@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "UnrealMidi",
+  "Description": "Utility to read out Midi controllers.",
+  "Category": "Input",
+  "CreatedBy": "ToucheToucan",
+  "Modules": [
+    {
+      "Name": "UnrealMidi",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    },
+    { 
+        "Name": "UnrealMidiEditor", 
+        "Type": "Editor",  
+        "LoadingPhase": "PostEngineInit" 
+    }
+  ],
+  "EnabledByDefault": true
+}
