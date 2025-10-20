@@ -24,6 +24,9 @@ struct UNREALMIDI_API FMidiFilterSettings
     // Disarm "active" if no accepted events for this long (s).
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Filter")
     float IdleSeconds = 0.12f;     // 120 ms
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Filter")
+    float SuppressOthersAfterDigital = 0.08f; // seconds (80 ms)
 };
 
 // Per-control runtime state (keyed by control Id)
