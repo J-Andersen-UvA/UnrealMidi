@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
+#include "UnrealMidiSubsystem.h"
 
 struct FToucanDeviceRow
 {
@@ -25,8 +26,23 @@ private:
     void OnToggleDevice(ECheckBoxState NewState, FToucanDeviceRowPtr Item);
     FReply OnSaveSelection();
     FReply OnRefreshClicked();
+    
+    // Banner helpers
+    void UpdateSavedSelectionStatus();
+    EVisibility GetMissingBannerVisibility() const;
+    FText GetMissingBannerText() const;
 
 private:
     TArray<FToucanDeviceRowPtr> Rows;
     TSharedPtr<SListView<FToucanDeviceRowPtr>> ListView;
+    
+    // Resolved saved selection (from config), with Index == -1 for missing
+    TArray<FUnrealMidiDeviceInfo> SavedResolved;
+    int32 NumMissing = 0;
+    FString MissingSummary;  // cached, pretty list of missing names
+
+    void OpenDeviceSettingsDialog(const FString& DeviceName);
+    TOptional<float> TEnterUI, TActiveUI, DebounceUI, IdleUI;
+
+    void OnRowCheckedChanged(ECheckBoxState NewState, FToucanDeviceRowPtr Item);
 };

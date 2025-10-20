@@ -8,14 +8,14 @@
   "CreatedBy": "ToucheToucan",
   "Modules": [
     {
-      "Name": "UnrealMidi",
-      "Type": "Editor",
-      "LoadingPhase": "Default"
+        "Name": "UnrealMidi",
+        "Type": "Runtime",
+        "LoadingPhase": "Default"
     },
-    { 
-        "Name": "UnrealMidiEditor", 
-        "Type": "Editor",  
-        "LoadingPhase": "PostEngineInit" 
+    {
+        "Name": "UnrealMidiEditor",
+        "Type": "Editor",
+        "LoadingPhase": "Default"
     }
   ],
   "EnabledByDefault": true
