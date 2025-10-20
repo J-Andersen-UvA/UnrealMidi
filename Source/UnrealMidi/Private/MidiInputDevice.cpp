@@ -34,6 +34,8 @@ bool FMidiInputDevice::Open()
             const int Chan = (s & 0x0F) + 1;
             const uint8 status = s & 0xF0;
 
+            const double Now = Self->NowSeconds();
+
             switch (status)
             {
                 case 0xB0: // CC
@@ -48,7 +50,13 @@ bool FMidiInputDevice::Open()
                     if (Msg->size() >= 2)
                         Self->HandleNote(Chan, (int)(*Msg)[1], false);
                     break;
-                default: break;
+                case 0xC0: // PC (status Cn, data1 = program)
+                    if (Msg->size() >= 2)
+                        Self->HandleProgramChange(Chan, (int)(*Msg)[1]);  // program 0..127
+                    break;
+
+                default:
+                    break;
             }
         }, this);
 
@@ -75,6 +83,11 @@ void FMidiInputDevice::Close()
     }
 }
 
+double FMidiInputDevice::NowSeconds() const
+{
+    return FPlatformTime::Seconds();
+}
+
 void FMidiInputDevice::HandleCc(int32 Chan, int32 Cc, int32 Val0to127)
 {
     const float Now = FPlatformTime::Seconds();
@@ -99,5 +112,16 @@ void FMidiInputDevice::HandleNote(int32 Chan, int32 Note, bool bOn)
     V.Value = bOn ? 1.f : 0.f; V.TimeSeconds = Now;
 
     { FScopeLock _(&ValuesMutex); LatestById.FindOrAdd(Id) = V; }
+    OnValueDelegate.Broadcast(V);
+}
+
+void FMidiInputDevice::HandleProgramChange(int Chan, int Program)
+{
+    FMidiControlValue V;
+    V.Id          = FString::Printf(TEXT("IN:%s:PC:%d:%d"), *DeviceName, Chan, Program);
+    V.Label       = FString::Printf(TEXT("Program ch%d #%d"), Chan, Program);
+    V.Value       = FMath::Clamp(static_cast<float>(Program) / 127.f, 0.f, 1.f); // normalized 0..1
+    V.TimeSeconds = NowSeconds();
+
     OnValueDelegate.Broadcast(V);
 }

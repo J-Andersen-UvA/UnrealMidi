@@ -28,6 +28,9 @@ private:
 
     // Opaque RtMidiIn* stored as void* to keep header clean
     void* RtMidiInPtr = nullptr;
+    
+    void HandleProgramChange(int Chan, int Program);
+    double NowSeconds() const;
 
     // Per-device latest values (optional; handy if you want to query per-device later)
     FCriticalSection ValuesMutex;
