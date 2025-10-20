@@ -34,6 +34,21 @@ bool FMidiInputDevice::Open()
             const int Chan = (s & 0x0F) + 1;
             const uint8 status = s & 0xF0;
 
+            // SysEx is variable length and therefore handled outside of the switch-case
+            if (s == 0xF0)
+            {
+                // Convert std::vector -> TArray for our header signature
+                TArray<uint8> Raw;
+                Raw.Reserve((int32)Msg->size());
+                for (unsigned char b : *Msg)
+                {
+                    Raw.Add((uint8)b);
+                }
+
+                Self->HandleSysEx(Raw);
+                return;
+            }
+
             const double Now = Self->NowSeconds();
 
             switch (status)
@@ -54,7 +69,6 @@ bool FMidiInputDevice::Open()
                     if (Msg->size() >= 2)
                         Self->HandleProgramChange(Chan, (int)(*Msg)[1]);  // program 0..127
                     break;
-
                 default:
                     break;
             }
@@ -124,4 +138,9 @@ void FMidiInputDevice::HandleProgramChange(int Chan, int Program)
     V.TimeSeconds = NowSeconds();
 
     OnValueDelegate.Broadcast(V);
+}
+
+void FMidiInputDevice::HandleSysEx(const TArray<uint8>& Raw)
+{
+    OnSysExDelegate.Broadcast(DeviceName, Raw);
 }
