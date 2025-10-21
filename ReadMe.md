@@ -33,8 +33,8 @@ UnrealMidi vendors [RtMidi](https://github.com/thestk/rtmidi) directly in the pl
     - Bind to OnMidiValue (continuous/discrete: CC, Note, Program Change) and optionally OnMidiSysEx.
     - Each OnMidiValue event gives you:
     > `Id` — e.g. IN:MyDevice:CC:1:74
-    `Label` — human-readable (CC ch1 #74, Note ch1 #60, Program ch1 #21)
-    `Value` — normalized 0..1 (buttons 0/1, notes 0/1, CC/PC scaled)
+    `Label` — e.g. (CC ch1 #74, Note ch1 #60, Program ch1 #21)
+    `Value` — 0..1 (buttons 0/1, notes 0/1, CC/PC scaled)
     `TimeSeconds` — timestamp
 
 ![MIDI Controller example](imgs/midicontrollerexample.png)
