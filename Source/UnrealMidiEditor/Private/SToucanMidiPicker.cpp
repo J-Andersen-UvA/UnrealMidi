@@ -228,6 +228,7 @@ FReply SToucanMidiPicker::OnSaveSelection()
             SavedResolved.Reset();
             Sys->GetSavedMidiControllers(SavedResolved);
             UpdateSavedSelectionStatus();
+            Sys->StartListeningSavedInputs();
         }
     }
 
