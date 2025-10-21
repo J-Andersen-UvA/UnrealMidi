@@ -1,5 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
+#include "MidiFilter.h"
+#include "ToucanMidiConfig.generated.h"
 
 namespace ToucanCfg
 {
@@ -13,3 +15,16 @@ namespace ToucanCfg
 		return FString::Printf(TEXT("ToucanMidiController.Device:%s"), *Dev);
 	}
 }
+
+USTRUCT(BlueprintType)
+struct UNREALMIDI_API FToucanPerDeviceSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
+    FMidiFilterSettings Filter;
+
+    // <-- NEW: this is not part of filtering; it’s a runtime/logging preference
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
+    bool bDebugPrint = false;
+};

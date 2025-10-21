@@ -45,4 +45,5 @@ private:
     TOptional<float> TEnterUI, TActiveUI, DebounceUI, IdleUI;
 
     void OnRowCheckedChanged(ECheckBoxState NewState, FToucanDeviceRowPtr Item);
+    bool bDebugPrintUI = false;
 };

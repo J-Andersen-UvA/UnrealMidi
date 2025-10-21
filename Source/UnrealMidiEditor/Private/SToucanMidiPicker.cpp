@@ -228,6 +228,7 @@ FReply SToucanMidiPicker::OnSaveSelection()
             SavedResolved.Reset();
             Sys->GetSavedMidiControllers(SavedResolved);
             UpdateSavedSelectionStatus();
+            Sys->StartListeningSavedInputs();
         }
     }
 
@@ -269,6 +270,7 @@ void SToucanMidiPicker::OpenDeviceSettingsDialog(const FString& DeviceName)
         {
             // Load current (or defaults)
             Sys->GetDeviceFilterSettings(DeviceName, S);
+            bDebugPrintUI = Sys->GetDeviceDebugPrint(DeviceName);
         }
     }
     TEnterUI = S.TEnter;
@@ -280,7 +282,7 @@ void SToucanMidiPicker::OpenDeviceSettingsDialog(const FString& DeviceName)
         .Title(FText::Format(LOCTEXT("DeviceFilterTitle", "Filter: {0}"), FText::FromString(DeviceName)))
         .AutoCenter(EAutoCenter::PreferredWorkArea)
         .SupportsMaximize(false).SupportsMinimize(false)
-        .ClientSize(FVector2D(420, 220));
+        .ClientSize(FVector2D(560, 360));
 
     Win->SetContent(
         SNew(SBorder).Padding(8)
@@ -345,6 +347,26 @@ void SToucanMidiPicker::OpenDeviceSettingsDialog(const FString& DeviceName)
                         [SNew(SNumericEntryBox<float>).MinValue(0.f).MaxValue(5.f).Delta(0.01f).Value(IdleUI).OnValueChanged_Lambda([this](float v) { IdleUI = v; })]
                 ]
 
+            // Debug print
+            + SVerticalBox::Slot().AutoHeight().Padding(0,4)
+            [
+                SNew(SHorizontalBox)
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0,0,8,0)
+                [ SNew(STextBlock).Text(LOCTEXT("DbgPrint", "Debug prints")) ]
+                + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+                [
+                    SNew(SCheckBox)
+                        .IsChecked_Lambda([this]()
+                            {
+                                return bDebugPrintUI ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                            })
+                        .OnCheckStateChanged_Lambda([this](ECheckBoxState S)
+                            {
+                                bDebugPrintUI = (S == ECheckBoxState::Checked);
+                            })
+                ]
+            ]
+
             // Buttons
             + SVerticalBox::Slot().AutoHeight().Padding(0, 10)
                 [
@@ -364,6 +386,8 @@ void SToucanMidiPicker::OpenDeviceSettingsDialog(const FString& DeviceName)
                                                 NewS.DebounceSeconds = DebounceUI.Get(0.035f);
                                                 NewS.IdleSeconds = IdleUI.Get(0.12f);
                                                 Sys->SetDeviceFilterSettings(DeviceName, NewS);
+
+                                                Sys->SetDeviceDebugPrint(DeviceName, bDebugPrintUI);
                                             }
                                         WinPtr->RequestDestroyWindow();
                                         return FReply::Handled();
