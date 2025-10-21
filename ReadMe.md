@@ -1,6 +1,5 @@
 # UnrealMidi
 
----
 
 ## Introduction
 UnrealMidi is an Unreal Engine plugin that brings hardware MIDI controllers into your project.
@@ -12,12 +11,10 @@ It lets you:
 
 Currently only tested on windows and preview of Unreal 5.7.0. Use a different RtMidi, setup to get it working in other OS's. 
 
----
 
 ## Dependencies
 UnrealMidi vendors [RtMidi](https://github.com/thestk/rtmidi) directly in the plugin.
 
----
 
 ## How to use
 1) Enable & pick your devices
@@ -77,7 +74,6 @@ void AMyListener::BeginPlay()
 }
 ```
 
----
 
 ### Notes & tips
 - The plugin can auto-start listening on editor load. If you hot-plug devices, use Refresh in the picker or call StartListeningSavedInputs() again (you can also enable the built-in periodic hot-plug scan if you added it).
