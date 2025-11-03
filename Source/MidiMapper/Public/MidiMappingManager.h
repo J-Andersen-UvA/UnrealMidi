@@ -1,0 +1,112 @@
+#pragma once
+#include "CoreMinimal.h"
+#include "UObject/NoExportTypes.h"
+#include "MidiMappingManager.generated.h"
+
+// Registered externally callable functions
+DECLARE_DELEGATE_ThreeParams(FMidiFunction, const FString& /*Device*/, int32 /*Control*/, float /*Value*/);
+
+USTRUCT()
+struct FMidiRegisteredFunction
+{
+    GENERATED_BODY()
+
+    FString Label;
+    FString Id;
+    FMidiFunction Callback;
+};
+
+USTRUCT(BlueprintType)
+struct FMidiMappedAction
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
+    FName ActionName;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
+    FName TargetControl;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
+    FName Modus;
+};
+
+USTRUCT(BlueprintType)
+struct FMidiDeviceMapping
+{
+    GENERATED_BODY()
+    FString RigName;
+    TMap<int32, FMidiMappedAction> ControlMappings;
+};
+
+UCLASS()
+class MIDIMAPPER_API UMidiMappingManager : public UObject
+{
+    GENERATED_BODY()
+
+public:
+    static UMidiMappingManager* Get();
+
+    void Initialize(const FString& InDeviceName, const FString& InRigName);
+
+    void RegisterMapping(const FString& DeviceName, int32 ControlID, const FMidiMappedAction& Action);
+    bool GetMapping(const FString& DeviceName, int32 ControlID, FMidiMappedAction& OutAction) const;
+
+    void RegisterOrUpdate(const FString& DeviceName, int32 ControlID, const FMidiMappedAction& Action);
+    bool RemoveMapping(const FString& DeviceName, int32 ControlID);
+
+    void SaveMappings();
+    void SaveMappings(const FString& InDeviceName, const FString& InRigName,
+        const TMap<int32, FMidiMappedAction>& InMappings);
+
+    void LoadMappings(const FString& InDeviceName, const FString& InRigName);
+    //const TMap<int32, FMidiMappedAction>& GetAll() const { return ControlMappings; }
+
+    UFUNCTION()
+    void DeactivateDevice(const FString& InDeviceName);
+
+    FString GetMappingFilePath(const FString& InDeviceName, const FString& InRigName) const;
+
+    const FMidiDeviceMapping* GetDeviceMapping(const FString& DeviceName) const
+    {
+        return Mappings.Find(DeviceName);
+    }
+
+    void ClearMappings(const FString& InDeviceName)
+    {
+        if (FMidiDeviceMapping* Dev = Mappings.Find(InDeviceName))
+        {
+            Dev->ControlMappings.Empty();
+            SaveMappings(InDeviceName, Dev->RigName, Dev->ControlMappings);
+        }
+    }
+
+    void ClearRegisteredFunctions();
+
+    void RegisterFunction(const FString& Label, const FString& Id, FMidiFunction Func);
+    const TArray<FMidiRegisteredFunction>& GetRegisteredFunctions() const { return RegisteredFunctions; }
+
+    void TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value);
+
+    UFUNCTION(BlueprintCallable, Category="MIDI Mapping")
+    void SaveAsConfig(const FString& FilePath);
+
+    UFUNCTION(BlueprintCallable, Category="MIDI Mapping")
+    void ImportConfig(const FString& FilePath);
+
+
+private:
+    //FString DeviceName;
+    //FString RigName;
+    FString MappingFilePath;
+
+    TArray<FMidiRegisteredFunction> RegisteredFunctions;
+
+
+    //UPROPERTY()
+    //TMap<int32, FMidiMappedAction> ControlMappings;
+
+    UPROPERTY()
+    TMap<FString, FMidiDeviceMapping> Mappings;
+
+};

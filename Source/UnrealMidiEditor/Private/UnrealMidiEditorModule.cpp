@@ -9,7 +9,8 @@
 
 #define LOCTEXT_NAMESPACE "FToucanMidiEditor"
 
-static const FName ToucanTabName("ToucanMidiController");
+static const FName ToucanTabName("ToucanMidiController");      // picker
+static const FName MidiMappingTabName("ToucanMidiMapping");    // mapping (from other module)
 
 class FUnrealMidiEditorModule : public IModuleInterface
 {
@@ -68,12 +69,25 @@ private:
         FToolMenuSection& Section =
             Menu->AddSection("ToucanMidiSection", LOCTEXT("ToucanMidiSection", "Toucan MIDI"));
 
+        // 1. MIDI Picker first
         Section.AddMenuEntry(
-            "scanForMidiAndSelect",
-            LOCTEXT("ScanForMidi", "scanForMidiAndSelect"),
-            LOCTEXT("ScanForMidi_Tip", "Open the MIDI device selector"),
+            "MidiPicker",
+            LOCTEXT("MidiPicker", "MIDI Picker"),
+            LOCTEXT("MidiPicker_Tip", "Open the MIDI device selector"),
             FSlateIcon(),
-            FUIAction(FExecuteAction::CreateRaw(this, &FUnrealMidiEditorModule::OpenToucanTab)));
+            FUIAction(FExecuteAction::CreateRaw(this, &FUnrealMidiEditorModule::OpenToucanTab))
+        );
+
+        // 2. MIDI Mapping second
+        Section.AddMenuEntry(
+            "MidiMapping",
+            LOCTEXT("MidiMapping", "MIDI Mapping"),
+            LOCTEXT("MidiMapping_Tip", "Open the MIDI Mapping tab."),
+            FSlateIcon(),
+            FUIAction(FExecuteAction::CreateLambda([] {
+                FGlobalTabmanager::Get()->TryInvokeTab(MidiMappingTabName);
+                }))
+        );
     }
 
     void OpenToucanTab()

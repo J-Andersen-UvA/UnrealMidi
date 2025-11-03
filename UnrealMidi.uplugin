@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
   "Version": 1,
-  "VersionName": "1.0",
+  "VersionName": "1.1",
   "FriendlyName": "UnrealMidi",
   "Description": "Utility to read out Midi controllers.",
   "Category": "Input",
@@ -14,6 +14,16 @@
     },
     {
         "Name": "UnrealMidiEditor",
+        "Type": "Editor",
+        "LoadingPhase": "Default"
+    },
+    {
+        "Name": "MidiMapper",
+        "Type": "Runtime",
+        "LoadingPhase": "Default"
+    },
+    {
+        "Name": "MidiMapperEditor",
         "Type": "Editor",
         "LoadingPhase": "Default"
     }
