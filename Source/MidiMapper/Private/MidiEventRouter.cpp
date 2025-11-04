@@ -127,7 +127,11 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
             *Action.Modus.ToString(),
             Value.Value);
         
-        // TODO: When mapped actions are implemented:
-        // Manager->TriggerFunction(Action.ActionName.ToString(), DeviceName, ControlID, Value.Normalized);
+        Manager->TriggerFunction(
+            Action.ActionName.ToString(),
+            DeviceName,
+            ControlID,
+            Value.Value
+        );
     }
 }

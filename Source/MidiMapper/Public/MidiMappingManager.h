@@ -4,7 +4,7 @@
 #include "MidiMappingManager.generated.h"
 
 // Registered externally callable functions
-DECLARE_DELEGATE_ThreeParams(FMidiFunction, const FString& /*Device*/, int32 /*Control*/, float /*Value*/);
+DECLARE_DELEGATE_FourParams(FMidiFunction, const FString& /*Device*/, int32 /*Control*/, float /*Value*/, const FString& /*FunctionId*/);
 
 USTRUCT()
 struct FMidiRegisteredFunction

@@ -169,9 +169,16 @@ void UMidiMappingManager::RegisterFunction(const FString& Label, const FString& 
 
 void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value)
 {
+    UE_LOG(LogTemp, Log, TEXT("FINDING FUNCTION TO EXECUTE"));
+
     for (const auto& F : RegisteredFunctions)
+    {
         if (F.Id == Id)
-            F.Callback.ExecuteIfBound(Device, Control, Value);
+        {
+            UE_LOG(LogTemp, Log, TEXT("FOUND %s, EXECUTING"), *F.Id);
+            F.Callback.ExecuteIfBound(Device, Control, Value, F.Id);
+        }
+    }
 }
 
 void UMidiMappingManager::SaveAsConfig(const FString& FilePath)
