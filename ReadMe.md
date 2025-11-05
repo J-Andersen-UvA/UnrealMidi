@@ -16,7 +16,7 @@ Currently only tested on windows and preview of Unreal 5.7.0. Use a different Rt
 UnrealMidi vendors [RtMidi](https://github.com/thestk/rtmidi) directly in the plugin.
 
 
-## How to use
+## How to use - script
 1) Enable & pick your devices
     - Add the plugin to your project's `Plugin` folder.
     - Enable UnrealMidi in your project's plugin window.
@@ -83,3 +83,35 @@ void AMyListener::BeginPlay()
     - Debounce time
     - Idle timeout
     - “Debug prints” (logs raw values/SysEx from this device)
+
+## How to use - learn window
+The plugin also provides means to map functions to the midi controls directly, but on a later moment by the user through a learn window.
+Important scripts to enable this:
+1. Learn Menu (Editor Window) — a UI (`SMidiMappingWindow`) to map functions to MIDI inputs.
+2. Mapping Manager (`UMidiMappingManager`) — stores mappings and registered callable functions.
+3. Event Router (`UMidiEventRouter`) — listens to incoming MIDI messages and triggers mapped actions.
+
+
+Following is a guide so you can bind functions to this menu.
+
+---
+1) Registering Functions in Script
+Before you can bind anything, you must register callable functions with the UMidiMappingManager.
+Each function has a label, an internal ID, and a callback with this signature:
+```cpp
+void(const FString& Device, int32 Control, float Value, const FString& FunctionId)
+
+// Example bind:
+if (UMidiMappingManager* Manager = UMidiMappingManager::Get())
+{
+    FMidiRegisteredFunction F;
+    F.Id = TEXT("Seq.StepForward");
+    F.Label = F.Id;
+    F.Callback.BindStatic(&USequencerControlSubsystem::OnMidi_StepForward);
+    Manager->RegisterFunction(F.Label, F.Id, F.Callback);
+}
+```
+---
+2) Using the Learn Menu
+Open the _MIDI Mapping_ window. Select a MIDI device that we want to bind to the functions. Each registered function is listed with buttons for Learn and Forget.
+Click learn, and then touch a MIDI control. The function is now bound to the MIDI control.
