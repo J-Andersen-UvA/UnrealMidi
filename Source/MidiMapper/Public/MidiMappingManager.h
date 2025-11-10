@@ -91,7 +91,6 @@ public:
 
     void TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value);
     void TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value, EMidiMessageType Type);
-    void TriggerProgramChange(const FString& Device, int32 Channel, int32 Program);
 
     UFUNCTION(BlueprintCallable, Category="MIDI Mapping")
     void SaveAsConfig(const FString& FilePath);

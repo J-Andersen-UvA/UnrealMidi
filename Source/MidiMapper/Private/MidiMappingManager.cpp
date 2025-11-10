@@ -168,15 +168,6 @@ void UMidiMappingManager::RegisterFunction(const FString& Label, const FString& 
     RegisteredFunctions.Add(F);
 }
 
-void UMidiMappingManager::TriggerProgramChange(const FString& Device, int32 Channel, int32 Program)
-{
-    const float NormalizedValue = static_cast<float>(Program) / 127.f;
-    const FString FunctionId = FString::Printf(TEXT("PC:%d:*"), Channel);
-    UE_LOG(LogTemp, Log, TEXT("ProgramChange: ch%d prog=%d -> %s"), Channel, Program, *FunctionId);
-
-    TriggerFunction(FunctionId, Device, Program, NormalizedValue, EMidiMessageType::PC);
-}
-
 void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value)
 {
     TriggerFunction(Id, Device, Control, Value, EMidiMessageType::CC);
