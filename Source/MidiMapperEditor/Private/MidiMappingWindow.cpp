@@ -135,7 +135,7 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
                             {
                                 return FText::FromString(CurrentMappingName.IsEmpty()
                                     ? TEXT("<no mapping loaded>")
-                                    : TEXT("Current Mapping: %s", CurrentMappingName));
+                                    : FString::Printf(TEXT("Current Mapping: %s"), *CurrentMappingName));
                             })
                         .ToolTipText_Lambda([this]() { return FText::FromString(CurrentMappingName); })
                 ]
