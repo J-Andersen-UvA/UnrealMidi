@@ -170,14 +170,11 @@ void UMidiMappingManager::RegisterFunction(const FString& Label, const FString& 
 
 void UMidiMappingManager::TriggerProgramChange(const FString& Device, int32 Channel, int32 Program)
 {
-    // Normalize to [0–1] for reuse with float-based callbacks
-    const float NormalizedValue = Program / 127.f;
-    const FString FunctionId = FString::Printf(TEXT("PC.%d"), Program);
-
+    const float NormalizedValue = static_cast<float>(Program) / 127.f;
+    const FString FunctionId = FString::Printf(TEXT("PC:%d:*"), Channel);
     UE_LOG(LogTemp, Log, TEXT("ProgramChange: ch%d prog=%d -> %s"), Channel, Program, *FunctionId);
 
-    // Reuse existing trigger system
-    TriggerFunction(FunctionId, Device, Program, NormalizedValue);
+    TriggerFunction(FunctionId, Device, Program, NormalizedValue, EMidiMessageType::PC);
 }
 
 void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value)
@@ -187,8 +184,6 @@ void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Devi
 
 void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value, EMidiMessageType Type)
 {
-    UE_LOG(LogTemp, Log, TEXT("FINDING FUNCTION TO EXECUTE"));
-
     for (const auto& F : RegisteredFunctions)
     {
         if (F.Id == Id)

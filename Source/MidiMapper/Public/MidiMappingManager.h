@@ -31,9 +31,6 @@ struct FMidiMappedAction
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="MIDI")
     FName Modus;
-
-    UPROPERTY(EditAnywhere, Category = "MIDI")
-    EMidiPCType PCMode = EMidiPCType::Discrete;
 };
 
 USTRUCT(BlueprintType)

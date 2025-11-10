@@ -96,16 +96,9 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
         }
 
         bLearning = false;
-
-        FString Key;
-        if (LocalValue.Type == EMidiMessageType::PC)
-        {
-            Key = FString::Printf(TEXT("PC:%d:*"), Channel);
-        }
-        else
-        {
-            Key = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
-        }
+        FString Key = (LocalValue.Type == EMidiMessageType::PC)
+            ? FString::Printf(TEXT("PC:%d:*"), Channel)
+            : UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
 
         OnLearn.Broadcast(DeviceName, Key);
         bSuppressNext = (Value.Type != EMidiMessageType::PC); // prevent the immediate next event from firing (lifting from a button)
@@ -125,85 +118,32 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
     }
 
     // --- mapped execution ---
+    FMidiMappedAction Action;
+
+    // --- Program Change ---
     if (LocalValue.Type == EMidiMessageType::PC)
     {
-        const FString ExactKey = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
-        FMidiMappedAction Action;
+        const FString WildKey = FString::Printf(TEXT("PC:%d:*"), LocalValue.Channel);
 
-        // 1. Try exact match first (Discrete)
-        if (Manager->GetMapping(DeviceName, ExactKey, Action))
+        if (!Manager->GetMapping(DeviceName, WildKey, Action))
         {
-            if (Action.PCMode == EMidiPCType::Continuous)
-            {
-                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: exact match Continuous"));
-                // Continuous mode from exact mapping (still valid)
-                const float Normalized = static_cast<float>(ControlID) / 127.f;
-                Manager->TriggerFunction(
-                    Action.ActionName.ToString(),
-                    DeviceName,
-                    ControlID,
-                    Normalized,
-                    LocalValue.Type
-                );
-            }
-            else // Discrete mode
-            {
-                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: exact match Discrete"));
-                Manager->TriggerFunction(
-                    Action.ActionName.ToString(),
-                    DeviceName,
-                    ControlID,
-                    1.0f,
-                    LocalValue.Type
-                );
-            }
+            UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: no PC mapping found for %s"), *WildKey);
             return;
         }
 
-        // 2. Fallback: check for wildcard continuous mapping (PC:<channel>:*)
-        const FString WildcardKey = FString::Printf(TEXT("PC:%d:*"), LocalValue.Channel);
-        if (Manager->GetMapping(DeviceName, WildcardKey, Action))
-        {
-            if (Action.PCMode == EMidiPCType::Continuous)
-            {
-                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: fallback mode Continuous"));
-                const float Normalized = static_cast<float>(ControlID) / 127.f;
-                Manager->TriggerFunction(
-                    Action.ActionName.ToString(),
-                    DeviceName,
-                    ControlID,
-                    Normalized,
-                    LocalValue.Type
-                );
-            }
-            else
-            {
-                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: fallback mode Discrete"));
-
-                // Treat wildcard discrete mappings as simple triggers
-                Manager->TriggerFunction(
-                    Action.ActionName.ToString(),
-                    DeviceName,
-                    ControlID,
-                    1.0f,
-                    LocalValue.Type
-                );
-            }
-            return;
-        }
-
-        // No PC mapping found
-        UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: ???"));
+        // Always forward the raw program number as float
+        Manager->TriggerFunction(
+            Action.ActionName.ToString(),
+            DeviceName,
+            ControlID,
+            static_cast<float>(ControlID),
+            LocalValue.Type
+        );
         return;
     }
-    else
-    {
-        // existing CC, Note, etc.
-        FString Key = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
-        FMidiMappedAction Action;
-        if (Manager->GetMapping(DeviceName, Key, Action))
-        {
-            Manager->TriggerFunction(Action.ActionName.ToString(), DeviceName, LocalValue.ControlId, LocalValue.Value, LocalValue.Type);
-        }
-    }
+
+    // --- fallback for CC, Note, etc ---
+    FString Key = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
+    if (Manager->GetMapping(DeviceName, Key, Action))
+        Manager->TriggerFunction(Action.ActionName.ToString(), DeviceName, LocalValue.ControlId, LocalValue.Value, LocalValue.Type);
 }

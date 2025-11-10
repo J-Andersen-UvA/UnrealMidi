@@ -13,13 +13,6 @@ enum class EMidiMessageType : uint8
     Other
 };
 
-UENUM(BlueprintType)
-enum class EMidiPCType : uint8
-{
-    Continuous UMETA(DisplayName = "Continuous"),
-    Discrete   UMETA(DisplayName = "Discrete")
-};
-
 USTRUCT(BlueprintType)
 struct UNREALMIDI_API FUnrealMidiDeviceInfo
 {

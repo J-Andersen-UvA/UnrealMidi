@@ -124,31 +124,6 @@ public:
                                         return FReply::Handled();
                                     })
                         ]
-                    // Program Change mode selector
-                    + SHorizontalBox::Slot().AutoWidth()
-                    [
-                        SNew(SComboBox<TSharedPtr<FString>>)
-                            .Visibility_Lambda([R = RowItem]() { return R->bIsProgramChange ? EVisibility::Visible : EVisibility::Collapsed; })
-                            .OptionsSource(OwnerPinned.IsValid() ? &OwnerPinned->GetPCModes() : nullptr)
-                            .OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
-                                {
-                                    return SNew(STextBlock).Text(FText::FromString(*InItem));
-                                })
-                            .OnSelectionChanged_Lambda([R = RowItem](TSharedPtr<FString> NewItem, ESelectInfo::Type)
-                                {
-                                    if (NewItem.IsValid())
-                                        R->PCMode = *NewItem;
-                                })
-                            .InitiallySelectedItem(
-                                OwnerPinned.IsValid()
-                                ? *OwnerPinned->GetPCModes().FindByPredicate(
-                                    [R = RowItem](const TSharedPtr<FString>& Item) { return *Item == R->PCMode; })
-                                : TSharedPtr<FString>()
-                            )
-                            [
-                                SNew(STextBlock).Text_Lambda([R = RowItem]() { return FText::FromString(R->PCMode); })
-                            ]
-                    ]
                 ];
         }
         else if (ColumnName == "Current Mapping")

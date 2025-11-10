@@ -255,9 +255,6 @@ void SMidiMappingWindow::OnLearnedControl(FString DeviceName, FString ControlKey
         A.ActionName = FName(*Row->ActionName);
         A.TargetControl = FName(*Row->TargetControl);
         A.Modus = FName(*Row->Modus);
-        A.PCMode = Row->bIsProgramChange
-            ? (Row->PCMode == "Continuous" ? EMidiPCType::Continuous : EMidiPCType::Discrete)
-            : EMidiPCType::Discrete;
         M->RegisterOrUpdate(ActiveDeviceName, ControlKey, A);
     }
 
