@@ -54,6 +54,8 @@ void UMidiEventRouter::CancelLearning()
 
 void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
 {
+    FMidiControlValue LocalValue = Value;  // make editable copy
+
     if (!Manager)
     {
         UE_LOG(LogTemp, Error, TEXT("MidiEventRouter: Manager pointer is null!"));
@@ -62,20 +64,26 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
 
     // Parse: IN:<DeviceName>:<TYPE>:<Chan>:<Num>
     int32 ControlID = -1;
+    int32 Channel = -1;
     {
         TArray<FString> Parts;
-        Value.Id.ParseIntoArray(Parts, TEXT(":"), true);
+        LocalValue.Id.ParseIntoArray(Parts, TEXT(":"), true);
         if (Parts.Num() >= 5)
+        {
+            Channel = FCString::Atoi(*Parts[3]);
             ControlID = FCString::Atoi(*Parts[4]);
+        }
     }
+    LocalValue.Channel = Channel;
+
     if (ControlID < 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("MidiEventRouter: couldn't parse control id from %s"), *Value.Id);
+        UE_LOG(LogTemp, Warning, TEXT("MidiEventRouter: couldn't parse control id from %s"), *LocalValue.Id);
         return;
     }
 
     FString DeviceName;
-    if (!UUnrealMidiSubsystem::ParseDeviceFromId(Value.Id, DeviceName))
+    if (!UUnrealMidiSubsystem::ParseDeviceFromId(LocalValue.Id, DeviceName))
         return;
 
     // --- learning path ---
@@ -88,9 +96,20 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
         }
 
         bLearning = false;
+
+        FString Key;
+        if (LocalValue.Type == EMidiMessageType::PC)
+        {
+            Key = FString::Printf(TEXT("PC:%d:*"), Channel);
+        }
+        else
+        {
+            Key = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
+        }
+
+        OnLearn.Broadcast(DeviceName, Key);
+        bSuppressNext = (Value.Type != EMidiMessageType::PC); // prevent the immediate next event from firing (lifting from a button)
         LastLearnedControl = ControlID;
-        OnLearn.Broadcast(DeviceName, ControlID);
-        bSuppressNext = true;     // prevent the immediate next event from firing
         return;
     }
 
@@ -105,33 +124,86 @@ void UMidiEventRouter::OnMidiValueReceived(const FMidiControlValue& Value)
         bSuppressNext = false;
     }
 
-    int32 DotPos;
-    if (DeviceName.FindChar('.', DotPos))
+    // --- mapped execution ---
+    if (LocalValue.Type == EMidiMessageType::PC)
     {
-        FString Left = DeviceName.Left(DotPos);
-        FString Right = DeviceName.Mid(DotPos + 1);
-        if (Left.Equals(Right, ESearchCase::IgnoreCase))
-            DeviceName = Left;
-    }
+        const FString ExactKey = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
+        FMidiMappedAction Action;
 
-    // --- normal mapped execution ---
-    FMidiMappedAction Action;
-    if (Manager->GetMapping(DeviceName, ControlID, Action))
+        // 1. Try exact match first (Discrete)
+        if (Manager->GetMapping(DeviceName, ExactKey, Action))
+        {
+            if (Action.PCMode == EMidiPCType::Continuous)
+            {
+                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: exact match Continuous"));
+                // Continuous mode from exact mapping (still valid)
+                const float Normalized = static_cast<float>(ControlID) / 127.f;
+                Manager->TriggerFunction(
+                    Action.ActionName.ToString(),
+                    DeviceName,
+                    ControlID,
+                    Normalized,
+                    LocalValue.Type
+                );
+            }
+            else // Discrete mode
+            {
+                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: exact match Discrete"));
+                Manager->TriggerFunction(
+                    Action.ActionName.ToString(),
+                    DeviceName,
+                    ControlID,
+                    1.0f,
+                    LocalValue.Type
+                );
+            }
+            return;
+        }
+
+        // 2. Fallback: check for wildcard continuous mapping (PC:<channel>:*)
+        const FString WildcardKey = FString::Printf(TEXT("PC:%d:*"), LocalValue.Channel);
+        if (Manager->GetMapping(DeviceName, WildcardKey, Action))
+        {
+            if (Action.PCMode == EMidiPCType::Continuous)
+            {
+                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: fallback mode Continuous"));
+                const float Normalized = static_cast<float>(ControlID) / 127.f;
+                Manager->TriggerFunction(
+                    Action.ActionName.ToString(),
+                    DeviceName,
+                    ControlID,
+                    Normalized,
+                    LocalValue.Type
+                );
+            }
+            else
+            {
+                UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: fallback mode Discrete"));
+
+                // Treat wildcard discrete mappings as simple triggers
+                Manager->TriggerFunction(
+                    Action.ActionName.ToString(),
+                    DeviceName,
+                    ControlID,
+                    1.0f,
+                    LocalValue.Type
+                );
+            }
+            return;
+        }
+
+        // No PC mapping found
+        UE_LOG(LogTemp, Log, TEXT("MidiEventRouter: ???"));
+        return;
+    }
+    else
     {
-        UE_LOG(LogTemp, Warning, TEXT("MIDI control %d (%s) from %s triggered %s (%s:%s) value=%.3f"),
-            ControlID,
-            *Value.Label,
-            *Value.Id,
-            *Action.ActionName.ToString(),
-            *Action.TargetControl.ToString(),
-            *Action.Modus.ToString(),
-            Value.Value);
-        
-        Manager->TriggerFunction(
-            Action.ActionName.ToString(),
-            DeviceName,
-            ControlID,
-            Value.Value
-        );
+        // existing CC, Note, etc.
+        FString Key = UMidiMappingManager::MakeMidiMapKey(LocalValue.Type, ControlID);
+        FMidiMappedAction Action;
+        if (Manager->GetMapping(DeviceName, Key, Action))
+        {
+            Manager->TriggerFunction(Action.ActionName.ToString(), DeviceName, LocalValue.ControlId, LocalValue.Value, LocalValue.Type);
+        }
     }
 }

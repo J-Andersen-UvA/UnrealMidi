@@ -109,8 +109,14 @@ void FMidiInputDevice::HandleCc(int32 Chan, int32 Cc, int32 Val0to127)
     const FString Id = MakeMidiId(DeviceName, TEXT("CC"), Chan, Cc);
 
     FMidiControlValue V;
-    V.Id = Id; V.Label = MakeMidiLabel(TEXT("CC"), Chan, Cc);
-    V.Value = Norm; V.TimeSeconds = Now;
+    V.Id = Id;
+    V.Label = MakeMidiLabel(TEXT("CC"), Chan, Cc);
+    V.Value = Norm;
+    V.TimeSeconds = Now;
+    V.TimeSeconds = Now;
+    V.Type = EMidiMessageType::CC;
+    V.Device = DeviceName;
+    V.ControlId = Cc;
 
     { FScopeLock _(&ValuesMutex); LatestById.FindOrAdd(Id) = V; }
     OnValueDelegate.Broadcast(V);
@@ -122,8 +128,13 @@ void FMidiInputDevice::HandleNote(int32 Chan, int32 Note, bool bOn)
     const FString Id = MakeMidiId(DeviceName, TEXT("NOTE"), Chan, Note);
 
     FMidiControlValue V;
-    V.Id = Id; V.Label = MakeMidiLabel(TEXT("NOTE"), Chan, Note);
-    V.Value = bOn ? 1.f : 0.f; V.TimeSeconds = Now;
+    V.Id = Id;
+    V.Label = MakeMidiLabel(TEXT("NOTE"), Chan, Note);
+    V.Value = bOn ? 1.f : 0.f;
+    V.TimeSeconds = Now;
+    V.Type = EMidiMessageType::CC;
+    V.Device = DeviceName;
+    V.ControlId = Note;
 
     { FScopeLock _(&ValuesMutex); LatestById.FindOrAdd(Id) = V; }
     OnValueDelegate.Broadcast(V);
@@ -132,10 +143,13 @@ void FMidiInputDevice::HandleNote(int32 Chan, int32 Note, bool bOn)
 void FMidiInputDevice::HandleProgramChange(int Chan, int Program)
 {
     FMidiControlValue V;
-    V.Id          = FString::Printf(TEXT("IN:%s:PC:%d:%d"), *DeviceName, Chan, Program);
-    V.Label       = FString::Printf(TEXT("Program ch%d #%d"), Chan, Program);
-    V.Value       = FMath::Clamp(static_cast<float>(Program) / 127.f, 0.f, 1.f); // normalized 0..1
+    V.Id = FString::Printf(TEXT("IN:%s:PC:%d:%d"), *DeviceName, Chan, Program);
+    V.Label = FString::Printf(TEXT("Program ch%d #%d"), Chan, Program);
+    V.Value = FMath::Clamp(static_cast<float>(Program) / 127.f, 0.f, 1.f); // normalized 0..1
     V.TimeSeconds = NowSeconds();
+    V.Type = EMidiMessageType::PC;
+    V.Device = DeviceName;
+    V.ControlId = Program;
 
     OnValueDelegate.Broadcast(V);
 }

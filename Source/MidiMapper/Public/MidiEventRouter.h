@@ -5,7 +5,7 @@
 #include "MidiMappingManager.h"
 #include "MidiEventRouter.generated.h"
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMidiLearnSignature, FString /*DeviceName*/, int32 /*ControlId*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMidiLearnSignature, FString /*DeviceName*/, FString /*ControlKey*/);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMidiAction, FName /*ActionName*/, FMidiControlValue /*Value*/);
 DECLARE_MULTICAST_DELEGATE(FOnLearningCancelled);
 

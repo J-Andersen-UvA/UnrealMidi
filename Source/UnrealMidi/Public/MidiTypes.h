@@ -2,6 +2,24 @@
 #include "CoreMinimal.h"
 #include "MidiTypes.generated.h"
 
+UENUM(BlueprintType)
+enum class EMidiMessageType : uint8
+{
+    CC,
+    PC,
+    NoteOn,
+    NoteOff,
+    PitchBend,
+    Other
+};
+
+UENUM(BlueprintType)
+enum class EMidiPCType : uint8
+{
+    Continuous UMETA(DisplayName = "Continuous"),
+    Discrete   UMETA(DisplayName = "Discrete")
+};
+
 USTRUCT(BlueprintType)
 struct UNREALMIDI_API FUnrealMidiDeviceInfo
 {
@@ -19,6 +37,10 @@ struct UNREALMIDI_API FMidiControlValue
     UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Label;      // CC ch1 #74 / Note ch10 #60
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float   Value = 0;  // 0..1 (CC) / 0/1 (Note)
     UPROPERTY(EditAnywhere, BlueprintReadOnly) float   TimeSeconds = 0;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) EMidiMessageType   Type = EMidiMessageType::CC;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) FString Device;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 ControlId = -1;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly) int32 Channel = -1;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnMidiValueNative, const FMidiControlValue&);

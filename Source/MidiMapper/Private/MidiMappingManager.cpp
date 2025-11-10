@@ -6,6 +6,7 @@
 #include "Serialization/JsonWriter.h"
 #include "Dom/JsonObject.h"
 #include "JsonObjectConverter.h"
+#include "MidiTypes.h"
 
 UMidiMappingManager* UMidiMappingManager::Get()
 {
@@ -43,18 +44,18 @@ void UMidiMappingManager::Initialize(const FString& InDeviceName, const FString&
     }
 }
 
-void UMidiMappingManager::RegisterMapping(const FString& InDeviceName, int32 ControlID, const FMidiMappedAction& Action)
+void UMidiMappingManager::RegisterMapping(const FString& InDeviceName, const FString& ControlKey, const FMidiMappedAction& Action)
 {
     FMidiDeviceMapping& DevMap = Mappings.FindOrAdd(InDeviceName);
-    DevMap.ControlMappings.Add(ControlID, Action);
+    DevMap.ControlMappings.Add(ControlKey, Action);
     SaveMappings(InDeviceName, DevMap.RigName, DevMap.ControlMappings);
 }
 
-bool UMidiMappingManager::GetMapping(const FString& InDeviceName, int32 ControlID, FMidiMappedAction& OutAction) const
+bool UMidiMappingManager::GetMapping(const FString& InDeviceName, const FString& ControlKey, FMidiMappedAction& OutAction) const
 {
     if (const FMidiDeviceMapping* DevMap = Mappings.Find(InDeviceName))
     {
-        if (const FMidiMappedAction* Found = DevMap->ControlMappings.Find(ControlID))
+        if (const FMidiMappedAction* Found = DevMap->ControlMappings.Find(ControlKey))
         {
             OutAction = *Found;
             return true;
@@ -77,7 +78,7 @@ void UMidiMappingManager::SaveMappings()
 void UMidiMappingManager::SaveMappings(
     const FString& InDeviceName,
     const FString& InRigName,
-    const TMap<int32, FMidiMappedAction>& InMappings)
+    const TMap<FString, FMidiMappedAction>& InMappings)
 {
     const FString FilePath = GetMappingFilePath(InDeviceName, InRigName);
 
@@ -85,7 +86,7 @@ void UMidiMappingManager::SaveMappings(
     for (const auto& Pair : InMappings)
     {
         TSharedPtr<FJsonObject> ActionObj = FJsonObjectConverter::UStructToJsonObject(Pair.Value);
-        RootObj->SetObjectField(FString::FromInt(Pair.Key), ActionObj);
+        RootObj->SetObjectField(Pair.Key, ActionObj);
     }
 
     FString OutputString;
@@ -117,7 +118,7 @@ void UMidiMappingManager::LoadMappings(const FString& InDeviceName, const FStrin
             {
                 FMidiMappedAction Action;
                 FJsonObjectConverter::JsonObjectToUStruct(ActionObj->ToSharedRef(), &Action);
-                DevMap.ControlMappings.Add(FCString::Atoi(*Pair.Key), Action);
+                DevMap.ControlMappings.Add(Pair.Key, Action);
             }
         }
     }
@@ -130,11 +131,11 @@ FString UMidiMappingManager::GetMappingFilePath(const FString& InDeviceName, con
     return Dir / FString::Printf(TEXT("%s_%s.json"), *InDeviceName, *InRigName);
 }
 
-bool UMidiMappingManager::RemoveMapping(const FString& InDeviceName, int32 ControlID)
+bool UMidiMappingManager::RemoveMapping(const FString& InDeviceName, const FString& ControlKey)
 {
     if (FMidiDeviceMapping* DevMap = Mappings.Find(InDeviceName))
     {
-        const bool bRemoved = DevMap->ControlMappings.Remove(ControlID) > 0;
+        const bool bRemoved = DevMap->ControlMappings.Remove(ControlKey) > 0;
         if (bRemoved)
         {
             SaveMappings(InDeviceName, DevMap->RigName, DevMap->ControlMappings);
@@ -144,9 +145,9 @@ bool UMidiMappingManager::RemoveMapping(const FString& InDeviceName, int32 Contr
     return false;
 }
 
-void UMidiMappingManager::RegisterOrUpdate(const FString& InDeviceName, int32 ControlID, const FMidiMappedAction& Action)
+void UMidiMappingManager::RegisterOrUpdate(const FString& InDeviceName, const FString& ControlKey, const FMidiMappedAction& Action)
 {
-    RegisterMapping(InDeviceName, ControlID, Action);
+    RegisterMapping(InDeviceName, ControlKey, Action);
 }
 
 void UMidiMappingManager::DeactivateDevice(const FString& InDeviceName)
@@ -167,7 +168,24 @@ void UMidiMappingManager::RegisterFunction(const FString& Label, const FString& 
     RegisteredFunctions.Add(F);
 }
 
+void UMidiMappingManager::TriggerProgramChange(const FString& Device, int32 Channel, int32 Program)
+{
+    // Normalize to [0–1] for reuse with float-based callbacks
+    const float NormalizedValue = Program / 127.f;
+    const FString FunctionId = FString::Printf(TEXT("PC.%d"), Program);
+
+    UE_LOG(LogTemp, Log, TEXT("ProgramChange: ch%d prog=%d -> %s"), Channel, Program, *FunctionId);
+
+    // Reuse existing trigger system
+    TriggerFunction(FunctionId, Device, Program, NormalizedValue);
+}
+
 void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value)
+{
+    TriggerFunction(Id, Device, Control, Value, EMidiMessageType::CC);
+}
+
+void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Device, int32 Control, float Value, EMidiMessageType Type)
 {
     UE_LOG(LogTemp, Log, TEXT("FINDING FUNCTION TO EXECUTE"));
 
@@ -176,7 +194,13 @@ void UMidiMappingManager::TriggerFunction(const FString& Id, const FString& Devi
         if (F.Id == Id)
         {
             UE_LOG(LogTemp, Log, TEXT("FOUND %s, EXECUTING"), *F.Id);
-            F.Callback.ExecuteIfBound(Device, Control, Value, F.Id);
+            FMidiControlValue V;
+            V.Device = Device;
+            V.ControlId = Control;
+            V.Value = Value;
+            V.Type = Type;
+            V.Id = F.Id;
+            F.Callback.ExecuteIfBound(V);
         }
     }
 }
@@ -199,11 +223,11 @@ void UMidiMappingManager::SaveAsConfig(const FString& FilePath)
         TArray<TSharedPtr<FJsonValue>> MappingsArray;
         for (const auto& ControlPair : Map.ControlMappings)
         {
-            const int32 ControlId = ControlPair.Key;
+            const FString& ControlKey = ControlPair.Key;
             const FMidiMappedAction& Action = ControlPair.Value;
 
             TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
-            Entry->SetNumberField(TEXT("ControlId"), ControlId);
+            Entry->SetStringField(TEXT("ControlKey"), ControlKey);
             Entry->SetStringField(TEXT("ActionName"), Action.ActionName.ToString());
             Entry->SetStringField(TEXT("TargetControl"), Action.TargetControl.ToString());
             Entry->SetStringField(TEXT("Modus"), Action.Modus.ToString());
@@ -259,7 +283,7 @@ void UMidiMappingManager::ImportConfig(const FString& FilePath)
                 Action.TargetControl = FName(*Entry->GetStringField(TEXT("TargetControl")));
                 Action.Modus = FName(*Entry->GetStringField(TEXT("Modus")));
 
-                RegisterOrUpdate(Device, ControlId, Action);
+                RegisterOrUpdate(Device, FString::Printf(TEXT("%d"), ControlId), Action);
             }
         }
     }
@@ -270,4 +294,23 @@ void UMidiMappingManager::ImportConfig(const FString& FilePath)
 void UMidiMappingManager::ClearRegisteredFunctions()
 {
     RegisteredFunctions.Empty();
+}
+
+void UMidiMappingManager::UnregisterTopic(const FString& TopicPrefix)
+{
+    if (TopicPrefix.IsEmpty())
+        return;
+
+    int32 Removed = 0;
+    for (int32 i = RegisteredFunctions.Num() - 1; i >= 0; --i)
+    {
+        const FString& Id = RegisteredFunctions[i].Id;
+        if (Id.StartsWith(TopicPrefix))
+        {
+            RegisteredFunctions.RemoveAt(i);
+            ++Removed;
+        }
+    }
+
+    UE_LOG(LogTemp, Log, TEXT("UnregisterTopic: Removed %d functions with prefix '%s'"), Removed, *TopicPrefix);
 }

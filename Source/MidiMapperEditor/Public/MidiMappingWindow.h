@@ -18,13 +18,18 @@ public:
         FString ActionName;
         FString TargetControl;
         FString Modus;
-        int32 BoundControlId = -1;
+        FString BoundControlKey;
         bool bIsLearning = false;
+
+        bool bIsProgramChange = false;
+        FString PCMode = TEXT("Continuous"); // Later: "Discrete", "Toggle", etc.
     };
     TArray<TSharedPtr<FControlRow>> Rows;
 
     FReply OnLearnClicked(TSharedPtr<FControlRow> Row);
     FReply OnUnbindClicked(TSharedPtr<FControlRow> Row);
+
+    const TArray<TSharedPtr<FString>>& GetPCModes() const { return PCModes; }
 
 private:
     FString ActiveDeviceName;
@@ -33,6 +38,8 @@ private:
     TArray<TSharedPtr<FString>> AvailableDevices;
     TSharedPtr<SComboBox<TSharedPtr<FString>>> DeviceCombo;
 
+    TArray<TSharedPtr<FString>> PCModes;
+
     TSharedPtr<SListView<TSharedPtr<FControlRow>>> MappingListView;
 
     void SetActiveDevice(const FString& Device);
@@ -40,7 +47,7 @@ private:
     TSharedRef<ITableRow> GenerateMappingRow(
         TSharedPtr<FControlRow> InItem,
         const TSharedRef<STableViewBase>& OwnerTable);
-    void OnLearnedControl(FString DeviceName, int32 ControlId, TSharedPtr<FControlRow> Row);
+    void OnLearnedControl(FString DeviceName, FString ControlKey, TSharedPtr<FControlRow> Row);
     FReply OnForgetAllClicked();
 
     void SafeCancelLearning();
@@ -79,10 +86,11 @@ public:
         }
         else if (ColumnName == "Learn")
         {
+            auto OwnerPinned = OwnerWindow.Pin();
+
             return SNew(SBox).Padding(Padding)
                 [
                     SNew(SHorizontalBox)
-
                         + SHorizontalBox::Slot().AutoWidth().Padding(FMargin(0, 0, 5, 0))
                         [
                             SNew(SButton)
@@ -116,6 +124,31 @@ public:
                                         return FReply::Handled();
                                     })
                         ]
+                    // Program Change mode selector
+                    + SHorizontalBox::Slot().AutoWidth()
+                    [
+                        SNew(SComboBox<TSharedPtr<FString>>)
+                            .Visibility_Lambda([R = RowItem]() { return R->bIsProgramChange ? EVisibility::Visible : EVisibility::Collapsed; })
+                            .OptionsSource(OwnerPinned.IsValid() ? &OwnerPinned->GetPCModes() : nullptr)
+                            .OnGenerateWidget_Lambda([](TSharedPtr<FString> InItem)
+                                {
+                                    return SNew(STextBlock).Text(FText::FromString(*InItem));
+                                })
+                            .OnSelectionChanged_Lambda([R = RowItem](TSharedPtr<FString> NewItem, ESelectInfo::Type)
+                                {
+                                    if (NewItem.IsValid())
+                                        R->PCMode = *NewItem;
+                                })
+                            .InitiallySelectedItem(
+                                OwnerPinned.IsValid()
+                                ? *OwnerPinned->GetPCModes().FindByPredicate(
+                                    [R = RowItem](const TSharedPtr<FString>& Item) { return *Item == R->PCMode; })
+                                : TSharedPtr<FString>()
+                            )
+                            [
+                                SNew(STextBlock).Text_Lambda([R = RowItem]() { return FText::FromString(R->PCMode); })
+                            ]
+                    ]
                 ];
         }
         else if (ColumnName == "Current Mapping")
@@ -125,8 +158,8 @@ public:
                     SNew(STextBlock)
                         .Text_Lambda([R = RowItem]()
                             {
-                                return R->BoundControlId >= 0
-                                    ? FText::FromString(FString::Printf(TEXT("MIDI #%d"), R->BoundControlId))
+                                return !R->BoundControlKey.IsEmpty()
+                                    ? FText::FromString(FString::Printf(TEXT("MIDI %s"), *R->BoundControlKey))
                                     : FText::FromString("Unmapped");
                             })
                 ];

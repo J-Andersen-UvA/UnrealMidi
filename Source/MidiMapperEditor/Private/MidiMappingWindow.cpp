@@ -38,6 +38,10 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
 {
     ActiveWindow = SharedThis(this);
 
+    PCModes.Empty();
+    PCModes.Add(MakeShared<FString>(TEXT("Continuous")));
+    PCModes.Add(MakeShared<FString>(TEXT("Discrete")));
+
     Rows.Empty();
     if (UMidiMappingManager* M = UMidiMappingManager::Get())
     {
@@ -200,14 +204,14 @@ void SMidiMappingWindow::RefreshBindings()
 
         for (auto& Row : Rows)
         {
-            Row->BoundControlId = -1;
+            Row->BoundControlKey;
             for (const auto& KVP : DeviceMap->ControlMappings)
             {
                 const FMidiMappedAction& Action = KVP.Value;
                 if (Action.ActionName.ToString() == Row->ActionName &&
                     Action.TargetControl.ToString() == Row->TargetControl)
                 {
-                    Row->BoundControlId = KVP.Key;
+                    Row->BoundControlKey = KVP.Key;
                     break;
                 }
             }
@@ -237,11 +241,13 @@ FReply SMidiMappingWindow::OnLearnClicked(TSharedPtr<FControlRow> Row)
     return FReply::Handled();
 }
 
-void SMidiMappingWindow::OnLearnedControl(FString DeviceName, int32 ControlId, TSharedPtr<FControlRow> Row)
+void SMidiMappingWindow::OnLearnedControl(FString DeviceName, FString ControlKey, TSharedPtr<FControlRow> Row)
 {
     if (!Row.IsValid()) return;
 
     Row->bIsLearning = false;
+    Row->BoundControlKey = ControlKey;
+    Row->bIsProgramChange = ControlKey.Contains(TEXT("PC:"));
 
     if (UMidiMappingManager* M = UMidiMappingManager::Get())
     {
@@ -249,7 +255,10 @@ void SMidiMappingWindow::OnLearnedControl(FString DeviceName, int32 ControlId, T
         A.ActionName = FName(*Row->ActionName);
         A.TargetControl = FName(*Row->TargetControl);
         A.Modus = FName(*Row->Modus);
-        M->RegisterOrUpdate(ActiveDeviceName, ControlId, A);
+        A.PCMode = Row->bIsProgramChange
+            ? (Row->PCMode == "Continuous" ? EMidiPCType::Continuous : EMidiPCType::Discrete)
+            : EMidiPCType::Discrete;
+        M->RegisterOrUpdate(ActiveDeviceName, ControlKey, A);
     }
 
     RefreshBindings();
@@ -265,12 +274,12 @@ FReply SMidiMappingWindow::OnUnbindClicked(TSharedPtr<FControlRow> Row)
     SafeCancelLearning();
     if (!Row.IsValid()) return FReply::Handled();
 
-    if (Row->BoundControlId >= 0)
+    if (!Row->BoundControlKey.IsEmpty())
     {
         if (UMidiMappingManager* M = UMidiMappingManager::Get())
-            M->RemoveMapping(ActiveDeviceName, Row->BoundControlId);
+            M->RemoveMapping(ActiveDeviceName, Row->BoundControlKey);
 
-        Row->BoundControlId = -1;
+        Row->BoundControlKey = TEXT("");
         RefreshBindings();
     }
     return FReply::Handled();
@@ -287,7 +296,7 @@ FReply SMidiMappingWindow::OnForgetAllClicked()
         M->ClearMappings(ActiveDeviceName);
 
     for (auto& Row : Rows)
-        Row->BoundControlId = -1;
+        Row->BoundControlKey = TEXT("");
 
     RefreshList();
     return FReply::Handled();
