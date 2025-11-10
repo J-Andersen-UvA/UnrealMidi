@@ -8,6 +8,10 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Misc/MessageDialog.h"
+#include "ContentBrowserModule.h"
+#include "IContentBrowserSingleton.h"
+#include "DesktopPlatformModule.h"
+#include "IDesktopPlatform.h"
 
 #define GRouter FMidiMapperModule::GetRouter()
 static TWeakPtr<SMidiMappingWindow> ActiveWindow;
@@ -38,10 +42,6 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
 {
     ActiveWindow = SharedThis(this);
 
-    PCModes.Empty();
-    PCModes.Add(MakeShared<FString>(TEXT("Continuous")));
-    PCModes.Add(MakeShared<FString>(TEXT("Discrete")));
-
     Rows.Empty();
     if (UMidiMappingManager* M = UMidiMappingManager::Get())
     {
@@ -67,14 +67,22 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
             ActiveDeviceName = *AvailableDevices[0];
     }
 
+    if (!ActiveDeviceName.IsEmpty())
+    {
+        if (UMidiMappingManager* M = UMidiMappingManager::Get())
+        {
+            const FString Last = UMidiMappingManager::LoadLastUsedFile(ActiveDeviceName);
+            if (!Last.IsEmpty() && FPaths::FileExists(Last))
+            {
+                M->LoadMappingsFromJson(Last);
+                CurrentMappingName = Last;
+            }
+        }
+    }
+
     ChildSlot
         [
             SNew(SVerticalBox)
-                + SVerticalBox::Slot().AutoHeight().Padding(5)
-                [
-                    SNew(STextBlock)
-                        .Text_Lambda([this]() { return FText::FromString(FString::Printf(TEXT("Current mapping: %s"), *CurrentMappingName)); })
-                ]
                 + SVerticalBox::Slot().AutoHeight().Padding(5)
                 [
                     SNew(SHorizontalBox)
@@ -92,6 +100,21 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
                                         if (NewItem.IsValid())
                                         {
                                             ActiveDeviceName = *NewItem;
+
+                                            if (UMidiMappingManager* M = UMidiMappingManager::Get())
+                                            {
+                                                const FString Last = UMidiMappingManager::LoadLastUsedFile(ActiveDeviceName);
+                                                if (!Last.IsEmpty() && FPaths::FileExists(Last))
+                                                {
+                                                    M->LoadMappingsFromJson(Last);
+                                                    CurrentMappingName = Last;
+                                                }
+                                                else
+                                                {
+                                                    CurrentMappingName.Empty();
+                                                }
+                                            }
+
                                             RefreshBindings();
                                             RefreshList();
                                         }
@@ -107,28 +130,29 @@ void SMidiMappingWindow::Construct(const FArguments& InArgs)
                 ]
             + SVerticalBox::Slot().AutoHeight().Padding(5)
                 [
+                    SNew(STextBlock)
+                        .Text_Lambda([this]()
+                            {
+                                return FText::FromString(CurrentMappingName.IsEmpty()
+                                    ? TEXT("<no mapping loaded>")
+                                    : TEXT("Current Mapping: %s", CurrentMappingName));
+                            })
+                        .ToolTipText_Lambda([this]() { return FText::FromString(CurrentMappingName); })
+                ]
+            + SVerticalBox::Slot().AutoHeight().Padding(5)
+                [
                     SNew(SHorizontalBox)
                         + SHorizontalBox::Slot().AutoWidth().Padding(5, 0)
                         [
                             SNew(SButton)
-                                .Text(FText::FromString("Save As"))
-                                .OnClicked_Lambda([]()
-                                    {
-                                        if (UMidiMappingManager* M = UMidiMappingManager::Get())
-                                            M->SaveAsConfig(TEXT("TMP_MidiMappingConfig.json"));
-                                        return FReply::Handled();
-                                    })
+                                .Text(FText::FromString("Save Mapping"))
+                                .OnClicked_Lambda([this]() { return OnSaveMappingClicked(); })
                         ]
-                    + SHorizontalBox::Slot().AutoWidth().Padding(5, 0)
+                        + SHorizontalBox::Slot().AutoWidth().Padding(5, 0)
                         [
                             SNew(SButton)
-                                .Text(FText::FromString("Import"))
-                                .OnClicked_Lambda([]()
-                                    {
-                                        if (UMidiMappingManager* M = UMidiMappingManager::Get())
-                                            M->ImportConfig(TEXT("TMP_MidiMappingConfig.json"));
-                                        return FReply::Handled();
-                                    })
+                                .Text(FText::FromString("Load Mapping"))
+                                .OnClicked_Lambda([this]() { return OnLoadMappingClicked(); })
                         ]
                 ]
             + SVerticalBox::Slot().AutoHeight().Padding(5)
@@ -197,6 +221,13 @@ void SMidiMappingWindow::RefreshFunctions()
 
 void SMidiMappingWindow::RefreshBindings()
 {
+    // Clear all shown bindings first
+    for (auto& Row : Rows)
+    {
+        Row->BoundControlKey.Empty();
+        Row->bIsProgramChange = false;
+    }
+
     if (UMidiMappingManager* M = UMidiMappingManager::Get())
     {
         const FMidiDeviceMapping* DeviceMap = M->GetDeviceMapping(ActiveDeviceName);
@@ -306,4 +337,57 @@ TSharedRef<ITableRow> SMidiMappingWindow::GenerateMappingRow(
     return SNew(SMidiMappingRow, OwnerTable)
         .RowItem(InItem)
         .OwnerWindow(SharedThis(this));
+}
+
+FReply SMidiMappingWindow::OnSaveMappingClicked()
+{
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+
+    TArray<FString> OutFiles;
+    const FString Title = TEXT("Save MIDI Mapping (.json)");
+    const FString DefaultPath = SMidiMappingWindow::GetDefaultMapsDir();
+    const FString DefaultFile = TEXT("MidiMapping.json");
+    const FString Types = TEXT("MIDI Mapping (*.json)|*.json");
+
+    if (Desktop->SaveFileDialog(nullptr, Title, DefaultPath, DefaultFile, Types, 0, OutFiles))
+    {
+        if (OutFiles.Num() > 0)
+        {
+            if (UMidiMappingManager* M = UMidiMappingManager::Get())
+            {
+                M->SaveMappingsToJson(OutFiles[0], ActiveDeviceName);
+                CurrentMappingName = OutFiles[0];
+                UMidiMappingManager::SaveLastUsedFile(ActiveDeviceName, CurrentMappingName);
+            }
+        }
+    }
+    return FReply::Handled();
+}
+
+FReply SMidiMappingWindow::OnLoadMappingClicked()
+{
+    IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+    if (!Desktop) return FReply::Handled();
+
+    TArray<FString> OutFiles;
+    const FString Title = TEXT("Open MIDI Mapping (.json)");
+    const FString DefaultPath = SMidiMappingWindow::GetDefaultMapsDir();
+    const FString Types = TEXT("MIDI Mapping (*.json)|*.json");
+
+    if (Desktop->OpenFileDialog(nullptr, Title, DefaultPath, TEXT(""), Types, 0, OutFiles))
+    {
+        if (OutFiles.Num() > 0)
+        {
+            if (UMidiMappingManager* M = UMidiMappingManager::Get())
+            {
+                M->LoadMappingsFromJson(OutFiles[0]);
+                RefreshBindings();
+                RefreshList();
+                CurrentMappingName = OutFiles[0];
+                UMidiMappingManager::SaveLastUsedFile(ActiveDeviceName, CurrentMappingName);
+            }
+        }
+    }
+    return FReply::Handled();
 }

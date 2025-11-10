@@ -7,6 +7,7 @@
 #include "Dom/JsonObject.h"
 #include "JsonObjectConverter.h"
 #include "MidiTypes.h"
+#include "Misc/ConfigCacheIni.h"
 
 UMidiMappingManager* UMidiMappingManager::Get()
 {
@@ -21,27 +22,33 @@ UMidiMappingManager* UMidiMappingManager::Get()
 
 void UMidiMappingManager::Initialize(const FString& InDeviceName, const FString& InRigName)
 {
-    FString CleanRig = InRigName;
-
-    // Strip suffix of form "X.Y" if identical
-    int32 DotPos;
-    if (CleanRig.FindChar('.', DotPos))
+    if (const FString Path = LoadLastUsedFile(InDeviceName); !Path.IsEmpty() && FPaths::FileExists(Path))
     {
-        FString Left = CleanRig.Left(DotPos);
-        FString Right = CleanRig.Mid(DotPos + 1);
-        if (Left.Equals(Right, ESearchCase::IgnoreCase))
-        {
-            CleanRig = Left;
-        }
+        LoadMappingsFromJson(Path);   // <-- correct call
+        return;
     }
 
-    // Only load once per device; keeps mapping memory persistent.
-    if (!Mappings.Contains(InDeviceName))
-    {
-        FMidiDeviceMapping& DevMap = Mappings.Add(InDeviceName);
-        DevMap.RigName = CleanRig;
-        LoadMappings(InDeviceName, CleanRig);
-    }
+    //FString CleanRig = InRigName;
+
+    //// Strip suffix of form "X.Y" if identical
+    //int32 DotPos;
+    //if (CleanRig.FindChar('.', DotPos))
+    //{
+    //    FString Left = CleanRig.Left(DotPos);
+    //    FString Right = CleanRig.Mid(DotPos + 1);
+    //    if (Left.Equals(Right, ESearchCase::IgnoreCase))
+    //    {
+    //        CleanRig = Left;
+    //    }
+    //}
+
+    //// Only load once per device; keeps mapping memory persistent.
+    //if (!Mappings.Contains(InDeviceName))
+    //{
+    //    FMidiDeviceMapping& DevMap = Mappings.Add(InDeviceName);
+    //    DevMap.RigName = CleanRig;
+    //    LoadMappings(InDeviceName, CleanRig);
+    //}
 }
 
 void UMidiMappingManager::RegisterMapping(const FString& InDeviceName, const FString& ControlKey, const FMidiMappedAction& Action)
@@ -94,6 +101,95 @@ void UMidiMappingManager::SaveMappings(
     FJsonSerializer::Serialize(RootObj, Writer);
 
     FFileHelper::SaveStringToFile(OutputString, *FilePath);
+}
+
+FString UMidiMappingManager::LoadLastUsedFile(const FString& DeviceName)
+{
+#if WITH_EDITOR
+    const FString& Ini = GEditorPerProjectIni; // user settings
+#else
+    const FString& Ini = GGameIni;
+#endif
+    FString Path;
+    GConfig->GetString(TEXT("MidiMappings"), *DeviceName, Path, Ini);
+    return Path;
+}
+
+void UMidiMappingManager::SaveLastUsedFile(const FString& DeviceName, const FString& Path)
+{
+#if WITH_EDITOR
+    const FString& Ini = GEditorPerProjectIni; // user settings
+#else
+    const FString& Ini = GGameIni;
+#endif
+    GConfig->SetString(TEXT("MidiMappings"), *DeviceName, *Path, Ini);
+    GConfig->Flush(false, Ini);
+}
+
+void UMidiMappingManager::SaveMappingsToJson(const FString& FilePath, const FString& DeviceName)
+{
+    const FMidiDeviceMapping* Dev = Mappings.Find(DeviceName);
+    if (!Dev) return;
+
+    TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+    Root->SetStringField(TEXT("DeviceName"), DeviceName);
+    Root->SetStringField(TEXT("RigName"), Dev->RigName);
+
+    // Serialize ControlMappings -> JsonObject
+    TSharedRef<FJsonObject> MapObj = MakeShared<FJsonObject>();
+    for (const auto& Kvp : Dev->ControlMappings)
+    {
+        TSharedRef<FJsonObject> ActionObj = MakeShared<FJsonObject>();
+        FJsonObjectConverter::UStructToJsonObject(FMidiMappedAction::StaticStruct(), &Kvp.Value, ActionObj, 0, 0);
+        MapObj->SetObjectField(Kvp.Key, ActionObj);
+    }
+    Root->SetObjectField(TEXT("Mappings"), MapObj);
+
+    FString OutStr;
+    auto Writer = TJsonWriterFactory<>::Create(&OutStr);
+    FJsonSerializer::Serialize(Root, Writer);
+
+    FFileHelper::SaveStringToFile(OutStr, *FilePath);
+    SaveLastUsedFile(DeviceName, FilePath);
+}
+
+void UMidiMappingManager::LoadMappingsFromJson(const FString& FilePath)
+{
+    FString InStr;
+    if (!FFileHelper::LoadFileToString(InStr, *FilePath)) return;
+
+    TSharedPtr<FJsonObject> Root;
+    auto Reader = TJsonReaderFactory<>::Create(InStr);
+    if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) return;
+
+    const FString DeviceName = Root->GetStringField(TEXT("DeviceName"));
+    const FString RigName = Root->GetStringField(TEXT("RigName"));
+
+    TMap<FString, FMidiMappedAction> NewMap;
+
+    const TSharedPtr<FJsonObject>* MappingsObjPtr = nullptr;
+    if (Root->TryGetObjectField(TEXT("Mappings"), MappingsObjPtr) && MappingsObjPtr && (*MappingsObjPtr).IsValid())
+    {
+        for (const auto& Pair : (*MappingsObjPtr)->Values)
+        {
+            FMidiMappedAction Action;
+            const TSharedPtr<FJsonObject>* ActionObj;
+            if (Pair.Value->TryGetObject(ActionObj) && ActionObj && (*ActionObj).IsValid())
+            {
+                if (FJsonObjectConverter::JsonObjectToUStruct((*ActionObj).ToSharedRef(), FMidiMappedAction::StaticStruct(), &Action))
+                {
+                    NewMap.Add(Pair.Key, Action);
+                }
+            }
+        }
+    }
+
+    // Replace existing mapping for this device
+    FMidiDeviceMapping& Dev = Mappings.FindOrAdd(DeviceName);
+    Dev.RigName = RigName;
+    Dev.ControlMappings = MoveTemp(NewMap);
+
+    SaveLastUsedFile(DeviceName, FilePath);
 }
 
 void UMidiMappingManager::LoadMappings(const FString& InDeviceName, const FString& InRigName)

@@ -31,6 +31,17 @@ public:
 
     const TArray<TSharedPtr<FString>>& GetPCModes() const { return PCModes; }
 
+    FReply OnSaveMappingClicked();
+    FReply OnLoadMappingClicked();
+
+    static FString GetDefaultMapsDir()
+    {
+        const FString Dir = FPaths::ConvertRelativePathToFull(
+            FPaths::ProjectSavedDir() / TEXT("Config/MidiMappings"));
+        IFileManager::Get().MakeDirectory(*Dir, /*Tree*/true);
+        return Dir;
+    }
+
 private:
     FString ActiveDeviceName;
     FString CurrentMappingName;

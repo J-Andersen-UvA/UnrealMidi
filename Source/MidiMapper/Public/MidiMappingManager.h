@@ -60,6 +60,11 @@ public:
     void SaveMappings();
     void SaveMappings(const FString& InDeviceName, const FString& InRigName,
         const TMap<FString, FMidiMappedAction>& InMappings);
+    void SaveMappingsToJson(const FString& FilePath, const FString& DeviceName);
+    void LoadMappingsFromJson(const FString& FilePath);
+
+    static void SaveLastUsedFile(const FString& DeviceName, const FString& Path);
+    static FString LoadLastUsedFile(const FString& DeviceName);
 
     void LoadMappings(const FString& InDeviceName, const FString& InRigName);
     //const TMap<int32, FMidiMappedAction>& GetAll() const { return ControlMappings; }

@@ -9,7 +9,7 @@ public class MidiMapperEditor : ModuleRules
         PrivateDependencyModuleNames.AddRange(new string[]
         {
             "Core", "CoreUObject", "Engine", "Slate", "SlateCore",
-            "InputCore", "ToolMenus", "Projects",
+            "InputCore", "ToolMenus", "Projects", "DesktopPlatform", "ContentBrowser"
         });
 
         // Includes by Toucan
